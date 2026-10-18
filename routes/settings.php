@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\BrandProfileController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -10,6 +11,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('settings/brand', [BrandProfileController::class, 'edit'])->name('brand.edit');
+    Route::put('settings/brand', [BrandProfileController::class, 'update'])->name('brand.update');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {

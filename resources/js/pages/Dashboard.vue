@@ -86,11 +86,11 @@ onMounted(() => workspace.load());
                 </span>
                 <div>
                     <p class="text-sm text-muted-foreground">
-                        AI posts generated
+                        AI writing assistant
                     </p>
-                    <p class="text-2xl font-semibold tabular-nums">—</p>
+                    <p class="text-2xl font-semibold">Available</p>
                     <p class="text-xs text-muted-foreground">
-                        AI service not connected
+                        In the post composer
                     </p>
                 </div>
             </article>
@@ -167,8 +167,9 @@ onMounted(() => workspace.load());
                         class="max-w-xl text-sm leading-6 text-white/75 sm:text-base"
                     >
                         Draft your own copy, tune its voice for each channel,
-                        and keep your ideas organized. AI generation and social
-                        publishing are not connected yet.
+                        and keep your ideas organized. AI writing is available
+                        in the composer when a server-side provider is
+                        configured. Social publishing is not connected yet.
                     </p>
                 </div>
             </div>

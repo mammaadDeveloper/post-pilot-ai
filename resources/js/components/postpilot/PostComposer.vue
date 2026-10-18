@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, useHttp, usePage } from '@inertiajs/vue3';
 import {
     ArrowUpRight,
     Bookmark,
@@ -19,10 +19,14 @@ import {
     Sparkles,
     Trash2,
 } from '@lucide/vue';
+import { generate as generatePostContent } from '@/actions/App/Http/Controllers/PostContentController';
 import { drafts as draftsRoute } from '@/routes/posts';
 import { usePostPilotWorkspace } from '@/composables/usePostPilotWorkspace';
-import { platforms } from '@/types/postpilot';
+import { platforms, postContentOperations } from '@/types/postpilot';
 import type {
+    PostContentOperation,
+    PostContentResponse,
+    PostContentVariant,
     Platform,
     PostDraft,
     PostFormat,
@@ -76,6 +80,52 @@ const imageInput = ref<HTMLInputElement | null>(null);
 const captionExpanded = ref(false);
 const isReadingMedia = ref(false);
 let mediaReadToken = 0;
+
+const operationLabels: Record<PostContentOperation, string> = {
+    generate: 'Generate post',
+    rewrite: 'Rewrite',
+    proofread: 'Proofread',
+    improve: 'Improve',
+    professional: 'Make more professional',
+    engaging: 'Make more engaging',
+    change_tone: 'Change tone',
+    shorten: 'Shorten',
+    expand: 'Expand',
+    improve_hook: 'Improve the opening',
+    adapt: 'Adapt for platform',
+    caption_hashtags: 'Generate caption & hashtags',
+    ideas: 'Generate content ideas',
+    custom: 'Custom instructions',
+};
+const selectedOperation = ref<PostContentOperation>('generate');
+const requestedVariants = ref(1);
+const aiVariants = ref<PostContentVariant[]>([]);
+const aiError = ref('');
+const aiNotice = ref('');
+const aiRequest = useHttp<
+    {
+        operation: PostContentOperation;
+        topic: string | null;
+        content: string;
+        platform: Platform;
+        format: PostFormat;
+        tone: PostTone;
+        language: PostLanguage;
+        instructions: string;
+        variants: number;
+    },
+    PostContentResponse
+>({
+    operation: 'generate',
+    topic: null,
+    content: '',
+    platform: 'LinkedIn',
+    format: 'Standard Post',
+    tone: 'Professional',
+    language: 'English',
+    instructions: '',
+    variants: 1,
+});
 
 const characterLimit = computed(() =>
     platform.value === 'X' ? 280 : platform.value === 'Instagram' ? 2200 : 3000,
@@ -298,6 +348,121 @@ async function focusEditor(): Promise<void> {
     await nextTick();
     contentInput.value?.focus();
 }
+
+function getResponseMessage(data: string | Record<string, unknown>): string {
+    let responseData: unknown = data;
+
+    if (typeof data === 'string') {
+        try {
+            responseData = JSON.parse(data) as unknown;
+        } catch {
+            return 'AI content generation failed. Please try again.';
+        }
+    }
+
+    if (
+        typeof responseData === 'object' &&
+        responseData !== null &&
+        'message' in responseData &&
+        typeof responseData.message === 'string'
+    ) {
+        return responseData.message;
+    }
+
+    return 'AI content generation failed. Please try again.';
+}
+
+async function requestAiContent(): Promise<void> {
+    if (aiRequest.processing) {
+        return;
+    }
+
+    aiError.value = '';
+    aiNotice.value = '';
+    aiVariants.value = [];
+    aiRequest.operation = selectedOperation.value;
+    aiRequest.topic = title.value.trim() || null;
+    aiRequest.content = content.value;
+    aiRequest.platform = platform.value;
+    aiRequest.format = format.value;
+    aiRequest.tone = tone.value;
+    aiRequest.language = language.value;
+    aiRequest.instructions = instructions.value.trim();
+    aiRequest.variants = requestedVariants.value;
+
+    if (
+        selectedOperation.value === 'generate' &&
+        !aiRequest.topic &&
+        aiRequest.instructions
+    ) {
+        aiRequest.topic = aiRequest.instructions;
+    }
+
+    try {
+        await aiRequest.post(generatePostContent.url(), {
+            onSuccess: (response) => {
+                aiVariants.value = response.variants;
+                aiNotice.value = 'Review a result and choose how to apply it.';
+            },
+            onError: (errors) => {
+                aiError.value =
+                    Object.values(errors).flat().join(' ') ||
+                    'Check the request details and try again.';
+            },
+            onHttpException: (response) => {
+                aiError.value = getResponseMessage(response.data);
+
+                return false;
+            },
+            onNetworkError: () => {
+                aiError.value =
+                    'Could not reach the server. Check your connection and try again.';
+            },
+        });
+    } catch {
+        if (!aiError.value) {
+            aiError.value = 'AI content generation failed. Please try again.';
+        }
+    }
+}
+
+async function regenerateContent(): Promise<void> {
+    selectedOperation.value = content.value.trim() ? 'rewrite' : 'generate';
+    await requestAiContent();
+}
+
+function acceptAiVariant(variant: PostContentVariant, append: boolean): void {
+    const hashtags = variant.hashtags
+        .map((hashtag) => (hashtag.startsWith('#') ? hashtag : `#${hashtag}`))
+        .join(' ');
+    const acceptedContent = [variant.content, hashtags]
+        .filter(Boolean)
+        .join('\n\n');
+    const nextContent =
+        append && content.value.trim()
+            ? `${content.value.trimEnd()}\n\n${acceptedContent}`
+            : acceptedContent;
+
+    if ([...nextContent].length > characterLimit.value) {
+        aiError.value = `This result would exceed the ${platform.value} character limit. Shorten the draft before appending it.`;
+        aiNotice.value = '';
+        return;
+    }
+
+    content.value = nextContent;
+
+    if (!append && !title.value.trim() && variant.title.trim()) {
+        title.value = variant.title;
+    }
+
+    aiVariants.value = [];
+    aiNotice.value = 'The selected result is now in your draft.';
+}
+
+function rejectAiResults(): void {
+    aiVariants.value = [];
+    aiNotice.value = 'AI suggestions dismissed. Your draft is unchanged.';
+}
 </script>
 
 <template>
@@ -454,6 +619,188 @@ async function focusEditor(): Promise<void> {
                 ></textarea>
             </div>
 
+            <section
+                class="grid gap-4 rounded-xl border border-secondary/30 bg-secondary/5 p-4"
+                aria-labelledby="ai-assistant-heading"
+            >
+                <div class="flex items-start gap-3">
+                    <Sparkles
+                        class="mt-0.5 size-4 shrink-0 text-secondary"
+                        aria-hidden="true"
+                    />
+                    <div class="grid gap-1">
+                        <h3
+                            id="ai-assistant-heading"
+                            class="text-sm font-semibold"
+                        >
+                            AI writing assistant
+                        </h3>
+                        <p class="text-xs leading-5 text-muted-foreground">
+                            Suggestions stay separate from your draft until you
+                            choose to apply one. Your attached image and other
+                            settings are preserved.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <div class="grid gap-2">
+                        <label for="ai-operation" class="text-sm font-medium">
+                            Writing action
+                        </label>
+                        <select
+                            id="ai-operation"
+                            v-model="selectedOperation"
+                            :disabled="aiRequest.processing"
+                            class="min-h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            <option
+                                v-for="operation in postContentOperations"
+                                :key="operation"
+                                :value="operation"
+                            >
+                                {{ operationLabels[operation] }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="grid gap-2 sm:w-28">
+                        <label
+                            for="ai-variant-count"
+                            class="text-sm font-medium"
+                        >
+                            Variants
+                        </label>
+                        <select
+                            id="ai-variant-count"
+                            v-model.number="requestedVariants"
+                            :disabled="aiRequest.processing"
+                            class="min-h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                            <option :value="1">1</option>
+                            <option :value="2">2</option>
+                            <option :value="3">3</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button
+                    type="button"
+                    :disabled="aiRequest.processing"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-lg bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-wait disabled:opacity-60"
+                    @click="requestAiContent"
+                >
+                    <span
+                        v-if="aiRequest.processing"
+                        class="size-4 animate-spin rounded-full border-2 border-current border-r-transparent"
+                        aria-hidden="true"
+                    ></span>
+                    <Sparkles v-else class="size-4" aria-hidden="true" />
+                    {{
+                        aiRequest.processing
+                            ? 'Generating…'
+                            : aiVariants.length
+                              ? 'Generate another set'
+                              : 'Get AI suggestions'
+                    }}
+                </button>
+
+                <p
+                    v-if="aiError"
+                    class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                    role="alert"
+                >
+                    {{ aiError }}
+                </p>
+                <p
+                    v-if="aiNotice"
+                    class="text-sm text-muted-foreground"
+                    role="status"
+                >
+                    {{ aiNotice }}
+                </p>
+
+                <div
+                    v-if="aiVariants.length"
+                    class="grid gap-3"
+                    aria-label="AI generated results"
+                    aria-live="polite"
+                >
+                    <article
+                        v-for="(variant, index) in aiVariants"
+                        :key="`${index}-${variant.title}`"
+                        class="grid gap-3 rounded-lg border border-border bg-background p-3"
+                        :aria-label="`Generated variant ${index + 1}`"
+                    >
+                        <div class="flex items-center justify-between gap-3">
+                            <h4 class="text-sm font-semibold">
+                                {{ variant.title || `Variant ${index + 1}` }}
+                            </h4>
+                            <span
+                                v-if="aiVariants.length > 1"
+                                class="text-xs text-muted-foreground"
+                            >
+                                {{ index + 1 }} of {{ aiVariants.length }}
+                            </span>
+                        </div>
+                        <p
+                            class="text-sm leading-6 break-words whitespace-pre-wrap"
+                            :dir="language === 'Persian' ? 'rtl' : 'auto'"
+                        >
+                            {{ variant.content }}
+                        </p>
+                        <p
+                            v-if="variant.hashtags.length"
+                            class="text-sm text-primary"
+                        >
+                            {{
+                                variant.hashtags
+                                    .map((tag) =>
+                                        tag.startsWith('#') ? tag : `#${tag}`,
+                                    )
+                                    .join(' ')
+                            }}
+                        </p>
+                        <ul
+                            v-if="variant.suggestions.length"
+                            class="grid gap-1 text-xs text-muted-foreground"
+                        >
+                            <li
+                                v-for="suggestion in variant.suggestions"
+                                :key="suggestion"
+                            >
+                                {{ suggestion }}
+                            </li>
+                        </ul>
+                        <div
+                            class="flex flex-wrap gap-2 border-t border-border pt-3"
+                        >
+                            <button
+                                type="button"
+                                class="min-h-10 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                @click="acceptAiVariant(variant, false)"
+                            >
+                                Replace draft
+                            </button>
+                            <button
+                                type="button"
+                                class="min-h-10 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                @click="acceptAiVariant(variant, true)"
+                            >
+                                Append to draft
+                            </button>
+                            <button
+                                type="button"
+                                class="min-h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                @click="rejectAiResults"
+                            >
+                                Reject suggestions
+                            </button>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
             <div class="grid gap-2">
                 <span class="text-sm font-medium">Post image</span>
                 <div class="flex flex-wrap items-center gap-3">
@@ -567,9 +914,10 @@ async function focusEditor(): Promise<void> {
                 </button>
                 <button
                     type="button"
-                    disabled
-                    title="AI generation is not connected yet"
-                    class="inline-flex min-h-11 cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground opacity-60"
+                    :disabled="aiRequest.processing"
+                    title="Rewrite the current copy, or generate from the draft title."
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:cursor-wait disabled:opacity-60"
+                    @click="regenerateContent"
                 >
                     <RotateCw class="size-4" aria-hidden="true" />
                     Regenerate
