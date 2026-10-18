@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutGrid } from '@lucide/vue';
+import {
+    BookOpen,
+    CalendarDays,
+    ChartNoAxesCombined,
+    FileText,
+    FolderGit2,
+    LayoutGrid,
+    PenLine,
+    Settings,
+    UserRound,
+} from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -30,27 +40,32 @@ const mainNavItems: NavItem[] = [
     {
         title: 'Create Post',
         href: postsRoute.create(),
-        icon: LayoutGrid,
+        icon: PenLine,
     },
     {
         title: 'Saved Drafts',
         href: postsRoute.drafts(),
-        icon: LayoutGrid,
+        icon: FileText,
     },
     {
         title: 'Schedule',
         href: scheduleRoute.index(),
-        icon: LayoutGrid,
+        icon: CalendarDays,
     },
     {
         title: 'Analytics',
         href: analyticsRoute.index(),
-        icon: LayoutGrid,
+        icon: ChartNoAxesCombined,
+    },
+    {
+        title: 'My Profile',
+        href: profileRoute.show(),
+        icon: UserRound,
     },
     {
         title: 'Settings',
         href: profileRoute.edit(),
-        icon: LayoutGrid,
+        icon: Settings,
     },
 ];
 

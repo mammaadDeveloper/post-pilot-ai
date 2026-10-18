@@ -2,17 +2,21 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     ArrowRight,
-    ArrowUpRight,
     CalendarDays,
-    CircleCheck,
-    CircleUserRound,
-    Palette,
-    Settings2,
+    ChartNoAxesCombined,
+    FileText,
+    Plus,
     Sparkles,
 } from '@lucide/vue';
+import { computed, onMounted } from 'vue';
 import { dashboard } from '@/routes';
-import { edit as editAppearance } from '@/routes/appearance';
-import { edit as editProfile } from '@/routes/profile';
+import { create as createPost, drafts as draftsRoute } from '@/routes/posts';
+import { index as scheduleRoute } from '@/routes/schedule';
+import { index as analyticsRoute } from '@/routes/analytics';
+import PageHeader from '@/components/postpilot/PageHeader.vue';
+import PlatformBadge from '@/components/postpilot/PlatformBadge.vue';
+import PostComposer from '@/components/postpilot/PostComposer.vue';
+import { usePostPilotWorkspace } from '@/composables/usePostPilotWorkspace';
 
 defineOptions({
     layout: {
@@ -27,56 +31,111 @@ defineOptions({
 
 const user = usePage().props.auth.user;
 const firstName = user.name.trim().split(/\s+/)[0] || 'there';
-const today = new Intl.DateTimeFormat('en', {
+const workspace = usePostPilotWorkspace(user.id);
+const today = new Intl.DateTimeFormat(undefined, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
 }).format(new Date());
-const memberSince = new Intl.DateTimeFormat('en', {
-    month: 'long',
-    year: 'numeric',
-}).format(new Date(user.created_at));
+const recentDrafts = computed(() =>
+    [...workspace.drafts.value]
+        .sort(
+            (first, second) =>
+                new Date(second.updatedAt).getTime() -
+                new Date(first.updatedAt).getTime(),
+        )
+        .slice(0, 3),
+);
+
+onMounted(() => workspace.load());
 </script>
 
 <template>
     <Head title="Dashboard" />
 
-    <main
+    <div
         class="mx-auto flex w-full max-w-[1440px] flex-col gap-8 p-4 sm:p-6 lg:p-8"
-        aria-labelledby="dashboard-title"
     >
-        <header
-            class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"
+        <PageHeader
+            :title="`Welcome back, ${firstName}`"
+            description="Your editorial workspace, ready for the next good idea."
+            :eyebrow="today"
         >
-            <div class="flex flex-col gap-2">
-                <p
-                    class="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase"
+            <template #actions>
+                <Link
+                    :href="createPost()"
+                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
-                    {{ today }}
-                </p>
-                <h1
-                    id="dashboard-title"
-                    class="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
-                >
-                    Welcome back, {{ firstName }}
-                </h1>
-                <p class="max-w-2xl text-sm leading-6 text-muted-foreground">
-                    A thoughtful home for your PostPilot workspace.
-                </p>
-            </div>
-
-            <Link
-                :href="editProfile()"
-                class="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-            >
-                <CircleUserRound class="size-4" aria-hidden="true" />
-                Manage profile
-                <ArrowUpRight class="size-4" aria-hidden="true" />
-            </Link>
-        </header>
+                    <Plus class="size-4" aria-hidden="true" />
+                    Create a post
+                </Link>
+            </template>
+        </PageHeader>
 
         <section
-            class="relative isolate overflow-hidden rounded-2xl bg-[#3f091d] p-6 text-white shadow-sm sm:p-8 lg:p-10"
+            class="grid gap-4 sm:grid-cols-3"
+            aria-label="Workspace activity"
+        >
+            <article
+                class="flex items-center gap-4 rounded-2xl border border-border bg-card p-5"
+            >
+                <span
+                    class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/5 text-primary"
+                >
+                    <Sparkles class="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                    <p class="text-sm text-muted-foreground">
+                        AI posts generated
+                    </p>
+                    <p class="text-2xl font-semibold tabular-nums">—</p>
+                    <p class="text-xs text-muted-foreground">
+                        AI service not connected
+                    </p>
+                </div>
+            </article>
+            <article
+                class="flex items-center gap-4 rounded-2xl border border-border bg-card p-5"
+            >
+                <span
+                    class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-secondary"
+                >
+                    <FileText class="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                    <p class="text-sm text-muted-foreground">Saved drafts</p>
+                    <p class="text-2xl font-semibold tabular-nums">
+                        {{ workspace.draftCount.value }}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        Stored on this device
+                    </p>
+                </div>
+            </article>
+            <article
+                class="flex items-center gap-4 rounded-2xl border border-border bg-card p-5"
+            >
+                <span
+                    class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#f5ebf3] text-[#5a1f32] dark:bg-[#5a1f32]/40 dark:text-[#ffd9e0]"
+                >
+                    <ChartNoAxesCombined class="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                    <p class="text-sm text-muted-foreground">
+                        Active platforms
+                    </p>
+                    <p class="text-2xl font-semibold tabular-nums">
+                        {{ workspace.activePlatformCount.value }}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        Used by your saved drafts
+                    </p>
+                </div>
+            </article>
+        </section>
+
+        <section
+            class="relative isolate overflow-hidden rounded-2xl bg-[#3f091d] p-6 text-white shadow-sm sm:p-8"
             aria-labelledby="workspace-heading"
         >
             <div
@@ -87,8 +146,7 @@ const memberSince = new Intl.DateTimeFormat('en', {
                     class="absolute inset-8 rounded-full border border-white/10"
                 ></div>
             </div>
-
-            <div class="flex max-w-2xl flex-col items-start gap-5">
+            <div class="flex max-w-3xl flex-col items-start gap-3">
                 <span
                     class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90"
                 >
@@ -103,193 +161,155 @@ const memberSince = new Intl.DateTimeFormat('en', {
                         id="workspace-heading"
                         class="max-w-xl text-2xl leading-tight font-semibold tracking-tight sm:text-3xl"
                     >
-                        Your next great idea starts here.
+                        A better post begins with a clear point of view.
                     </h2>
                     <p
                         class="max-w-xl text-sm leading-6 text-white/75 sm:text-base"
                     >
-                        Publishing activity and analytics will appear here when
-                        they’re available for your workspace. Until then, keep
-                        your account details and preferences up to date.
+                        Draft your own copy, tune its voice for each channel,
+                        and keep your ideas organized. AI generation and social
+                        publishing are not connected yet.
                     </p>
                 </div>
-                <Link
-                    :href="editProfile()"
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-[#3f091d] transition-colors hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#3f091d] focus-visible:outline-none"
-                >
-                    Review account details
-                    <ArrowRight class="size-4" aria-hidden="true" />
-                </Link>
             </div>
         </section>
 
+        <PostComposer compact @saved="workspace.load()" />
+
         <div class="grid gap-6 lg:grid-cols-12">
             <section
-                class="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 sm:p-7 lg:col-span-7"
-                aria-labelledby="account-heading"
+                class="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 sm:p-6 lg:col-span-8"
+                aria-labelledby="drafts-heading"
             >
-                <div class="flex items-start justify-between gap-4">
+                <div class="flex flex-wrap items-start justify-between gap-4">
                     <div class="flex flex-col gap-1">
                         <h2
-                            id="account-heading"
+                            id="drafts-heading"
                             class="text-lg font-semibold tracking-tight"
                         >
-                            Account at a glance
+                            Recent drafts
                         </h2>
                         <p class="text-sm text-muted-foreground">
-                            The details connected to your workspace.
+                            Pick up where you left off.
                         </p>
                     </div>
-                    <span
-                        v-if="user.email_verified_at"
-                        class="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                    <Link
+                        :href="draftsRoute()"
+                        class="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     >
-                        <CircleCheck class="size-3.5" aria-hidden="true" />
-                        Verified
-                    </span>
+                        All drafts
+                        <ArrowRight class="size-4" aria-hidden="true" />
+                    </Link>
                 </div>
-
-                <dl class="grid gap-4 sm:grid-cols-2">
-                    <div
-                        class="flex min-w-0 flex-col gap-1 rounded-xl bg-muted/60 p-4"
-                    >
-                        <dt
-                            class="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-                        >
-                            Name
-                        </dt>
-                        <dd
-                            class="truncate text-sm font-medium text-foreground"
-                        >
-                            {{ user.name }}
-                        </dd>
-                    </div>
-                    <div
-                        class="flex min-w-0 flex-col gap-1 rounded-xl bg-muted/60 p-4"
-                    >
-                        <dt
-                            class="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-                        >
-                            Email address
-                        </dt>
-                        <dd
-                            class="truncate text-sm font-medium text-foreground"
-                        >
-                            {{ user.email }}
-                        </dd>
-                    </div>
-                    <div
-                        class="flex min-w-0 flex-col gap-1 rounded-xl bg-muted/60 p-4 sm:col-span-2"
-                    >
-                        <dt
-                            class="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-                        >
-                            Member since
-                        </dt>
-                        <dd
-                            class="flex items-center gap-2 text-sm font-medium text-foreground"
-                        >
-                            <CalendarDays
-                                class="size-4 text-muted-foreground"
-                                aria-hidden="true"
-                            />
-                            {{ memberSince }}
-                        </dd>
-                    </div>
-                </dl>
-
-                <Link
-                    :href="editProfile()"
-                    class="group inline-flex w-fit items-center gap-2 text-sm font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                <div
+                    v-if="workspace.storageError.value"
+                    class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                    role="alert"
                 >
-                    Edit account details
-                    <ArrowRight
-                        class="size-4 transition-transform group-hover:translate-x-0.5"
-                        aria-hidden="true"
-                    />
-                </Link>
+                    {{ workspace.storageError.value }}
+                </div>
+                <ul
+                    v-else-if="recentDrafts.length"
+                    class="flex flex-col divide-y divide-border"
+                >
+                    <li
+                        v-for="draft in recentDrafts"
+                        :key="draft.id"
+                        class="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                    >
+                        <div class="flex min-w-0 flex-1 flex-col gap-2">
+                            <Link
+                                :href="
+                                    createPost({ query: { draft: draft.id } })
+                                "
+                                class="truncate text-sm font-medium hover:text-primary hover:underline"
+                            >
+                                {{ draft.title }}
+                            </Link>
+                            <span class="text-xs text-muted-foreground">
+                                {{
+                                    new Intl.DateTimeFormat(undefined, {
+                                        month: 'short',
+                                        day: 'numeric',
+                                    }).format(new Date(draft.updatedAt))
+                                }}
+                            </span>
+                        </div>
+                        <PlatformBadge :platform="draft.platform" />
+                    </li>
+                </ul>
+                <div
+                    v-else
+                    class="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 px-5 py-8 text-center"
+                >
+                    <span
+                        class="flex size-11 items-center justify-center rounded-full bg-card text-primary shadow-sm"
+                    >
+                        <FileText class="size-5" aria-hidden="true" />
+                    </span>
+                    <div class="flex flex-col gap-1">
+                        <p class="text-sm font-medium">No drafts yet</p>
+                        <p class="text-sm text-muted-foreground">
+                            Your saved ideas will be easy to find here.
+                        </p>
+                    </div>
+                </div>
             </section>
 
             <section
-                class="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6 sm:p-7 lg:col-span-5"
-                aria-labelledby="preferences-heading"
+                class="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:p-6 lg:col-span-4"
+                aria-labelledby="workspace-links-heading"
             >
-                <div class="flex items-start gap-3">
-                    <span
-                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#f5ebf3] text-[#5a1f32] dark:bg-[#5a1f32]/40 dark:text-[#ffd9e0]"
+                <div class="flex flex-col gap-1">
+                    <h2
+                        id="workspace-links-heading"
+                        class="text-lg font-semibold tracking-tight"
                     >
-                        <Settings2 class="size-5" aria-hidden="true" />
-                    </span>
-                    <div class="flex flex-col gap-1">
-                        <h2
-                            id="preferences-heading"
-                            class="text-lg font-semibold tracking-tight"
-                        >
-                            Make it yours
-                        </h2>
-                        <p class="text-sm leading-5 text-muted-foreground">
-                            Set the details and look that feel right to you.
-                        </p>
-                    </div>
+                        Your workspace
+                    </h2>
+                    <p class="text-sm text-muted-foreground">
+                        Organize ideas and review your activity.
+                    </p>
                 </div>
-
-                <nav aria-label="Workspace preferences">
+                <nav aria-label="Workspace tools">
                     <ul class="flex flex-col divide-y divide-border">
                         <li>
                             <Link
-                                :href="editProfile()"
-                                class="group flex min-h-16 items-center justify-between gap-4 py-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                :href="scheduleRoute()"
+                                class="group flex min-h-14 items-center justify-between gap-3 py-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             >
-                                <span class="flex items-center gap-3">
-                                    <CircleUserRound
-                                        class="size-4 text-muted-foreground"
-                                        aria-hidden="true"
-                                    />
-                                    <span class="flex flex-col gap-0.5">
-                                        <span class="text-sm font-medium"
-                                            >Profile</span
-                                        >
-                                        <span
-                                            class="text-xs text-muted-foreground"
-                                            >Name and email address</span
-                                        >
-                                    </span>
-                                </span>
+                                <span class="text-sm font-medium"
+                                    >Editorial schedule</span
+                                >
                                 <ArrowRight
-                                    class="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+                                    class="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                                     aria-hidden="true"
                                 />
                             </Link>
                         </li>
                         <li>
                             <Link
-                                :href="editAppearance()"
-                                class="group flex min-h-16 items-center justify-between gap-4 py-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                :href="analyticsRoute()"
+                                class="group flex min-h-14 items-center justify-between gap-3 py-3 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             >
-                                <span class="flex items-center gap-3">
-                                    <Palette
-                                        class="size-4 text-muted-foreground"
-                                        aria-hidden="true"
-                                    />
-                                    <span class="flex flex-col gap-0.5">
-                                        <span class="text-sm font-medium"
-                                            >Appearance</span
-                                        >
-                                        <span
-                                            class="text-xs text-muted-foreground"
-                                            >Choose your display theme</span
-                                        >
-                                    </span>
-                                </span>
+                                <span class="text-sm font-medium"
+                                    >Workflow analytics</span
+                                >
                                 <ArrowRight
-                                    class="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+                                    class="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                                     aria-hidden="true"
                                 />
                             </Link>
                         </li>
                     </ul>
                 </nav>
+                <p
+                    class="rounded-lg bg-muted/60 p-3 text-xs leading-5 text-muted-foreground"
+                >
+                    Drafts and planning data stay in this browser and are not
+                    synced to an account yet.
+                </p>
             </section>
         </div>
-    </main>
+    </div>
 </template>
