@@ -74,6 +74,8 @@ const error = ref('');
 const contentInput = ref<HTMLTextAreaElement | null>(null);
 const imageInput = ref<HTMLInputElement | null>(null);
 const captionExpanded = ref(false);
+const isReadingMedia = ref(false);
+let mediaReadToken = 0;
 
 const characterLimit = computed(() =>
     platform.value === 'X' ? 280 : platform.value === 'Instagram' ? 2200 : 3000,
@@ -126,6 +128,9 @@ async function handleMediaChange(event: Event): Promise<void> {
         return;
     }
 
+    const readToken = ++mediaReadToken;
+    isReadingMedia.value = false;
+
     if (
         !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(
             file.type,
@@ -143,6 +148,8 @@ async function handleMediaChange(event: Event): Promise<void> {
         return;
     }
 
+    isReadingMedia.value = true;
+
     try {
         const dataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
@@ -159,17 +166,47 @@ async function handleMediaChange(event: Event): Promise<void> {
             reader.readAsDataURL(file);
         });
 
+        if (readToken !== mediaReadToken) {
+            return;
+        }
+
+        await new Promise<void>((resolve, reject) => {
+            const image = new Image();
+            image.addEventListener('load', () => resolve(), { once: true });
+            image.addEventListener(
+                'error',
+                () =>
+                    reject(
+                        new Error('The selected file is not a valid image.'),
+                    ),
+                { once: true },
+            );
+            image.src = dataUrl;
+        });
+
+        if (readToken !== mediaReadToken) {
+            return;
+        }
+
         mediaDataUrl.value = dataUrl;
         mediaFileName.value = file.name;
         notice.value = 'Image attached to this browser draft.';
     } catch {
-        error.value = 'The selected image could not be read.';
+        if (readToken === mediaReadToken) {
+            error.value = 'The selected file could not be read as an image.';
+        }
     } finally {
+        if (readToken === mediaReadToken) {
+            isReadingMedia.value = false;
+        }
+
         input.value = '';
     }
 }
 
 function removeMedia(): void {
+    mediaReadToken += 1;
+    isReadingMedia.value = false;
     mediaDataUrl.value = undefined;
     mediaFileName.value = undefined;
 
@@ -451,6 +488,37 @@ async function focusEditor(): Promise<void> {
                         Remove
                     </button>
                 </div>
+                <div
+                    v-if="isReadingMedia"
+                    class="flex items-center gap-2 text-xs text-muted-foreground"
+                    role="status"
+                >
+                    <span
+                        class="size-3 animate-spin rounded-full border-2 border-current border-r-transparent"
+                        aria-hidden="true"
+                    ></span>
+                    Loading image preview…
+                </div>
+                <div
+                    v-else-if="mediaDataUrl"
+                    class="flex max-w-sm items-center gap-3 rounded-lg border border-border bg-muted/30 p-2"
+                >
+                    <img
+                        :src="mediaDataUrl"
+                        :alt="
+                            mediaFileName
+                                ? `Selected image: ${mediaFileName}`
+                                : 'Selected post image'
+                        "
+                        class="size-16 shrink-0 rounded-md bg-muted object-cover"
+                    />
+                    <div class="flex min-w-0 flex-col gap-1">
+                        <span class="text-xs font-medium">Image attached</span>
+                        <span class="truncate text-xs text-muted-foreground">
+                            {{ mediaFileName }}
+                        </span>
+                    </div>
+                </div>
                 <p class="text-xs leading-5 text-muted-foreground">
                     JPEG, PNG, WebP, or GIF up to 1 MB. Images are saved with
                     drafts in this browser only.
@@ -530,6 +598,13 @@ async function focusEditor(): Promise<void> {
                     <p class="text-xs text-muted-foreground">
                         Approximate {{ platform }} feed layout · updates as you
                         edit.
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        {{
+                            mediaDataUrl
+                                ? 'Image attached'
+                                : 'Text-only post · no image attached'
+                        }}
                     </p>
                 </div>
                 <PlatformBadge :platform="platform" />
@@ -681,7 +756,9 @@ async function focusEditor(): Promise<void> {
                 </div>
                 <div class="px-3 pb-4 text-sm leading-6">
                     <p v-if="previewContent" class="break-words">
-                        <span class="inline-block font-semibold mr-1.5">{{ user.name }}</span>
+                        <span class="mr-1.5 inline-block font-semibold">{{
+                            user.name
+                        }}</span>
                         <span class="whitespace-pre-wrap">
                             {{ displayedPreviewContent }}
                         </span>
