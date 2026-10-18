@@ -24,6 +24,8 @@ export type PostDraft = {
     tone: PostTone;
     language: PostLanguage;
     instructions: string;
+    mediaDataUrl?: string;
+    mediaFileName?: string;
     createdAt: string;
     updatedAt: string;
 };

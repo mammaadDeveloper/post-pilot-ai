@@ -27,6 +27,10 @@ function isDraft(value: unknown): value is PostDraft {
         typeof draft.tone === 'string' &&
         typeof draft.language === 'string' &&
         typeof draft.instructions === 'string' &&
+        (draft.mediaDataUrl === undefined ||
+            typeof draft.mediaDataUrl === 'string') &&
+        (draft.mediaFileName === undefined ||
+            typeof draft.mediaFileName === 'string') &&
         typeof draft.createdAt === 'string' &&
         typeof draft.updatedAt === 'string'
     );

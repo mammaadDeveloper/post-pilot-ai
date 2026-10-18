@@ -2,6 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import AppearanceTabs from '@/components/AppearanceTabs.vue';
 import Heading from '@/components/Heading.vue';
+import ThemeColorPicker from '@/components/ThemeColorPicker.vue';
 import { edit } from '@/routes/appearance';
 
 defineOptions({
@@ -28,5 +29,6 @@ defineOptions({
             description="Update the appearance settings for your account"
         />
         <AppearanceTabs />
+        <ThemeColorPicker />
     </div>
 </template>

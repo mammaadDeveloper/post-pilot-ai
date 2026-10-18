@@ -112,6 +112,8 @@ function duplicateDraft(draft: PostDraft): void {
         tone: draft.tone,
         language: draft.language,
         instructions: draft.instructions,
+        mediaDataUrl: draft.mediaDataUrl,
+        mediaFileName: draft.mediaFileName,
     });
 
     confirmation.value = duplicate
