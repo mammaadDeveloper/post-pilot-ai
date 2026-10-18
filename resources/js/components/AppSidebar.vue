@@ -15,12 +15,41 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import * as postsRoute from '@/routes/posts';
+import * as scheduleRoute from '@/routes/schedule';
+import * as analyticsRoute from '@/routes/analytics';
+import * as profileRoute from '@/routes/profile';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         href: dashboard(),
+        icon: LayoutGrid,
+    },
+    {
+        title: 'Create Post',
+        href: postsRoute.create(),
+        icon: LayoutGrid,
+    },
+    {
+        title: 'Saved Drafts',
+        href: postsRoute.drafts(),
+        icon: LayoutGrid,
+    },
+    {
+        title: 'Schedule',
+        href: scheduleRoute.index(),
+        icon: LayoutGrid,
+    },
+    {
+        title: 'Analytics',
+        href: analyticsRoute.index(),
+        icon: LayoutGrid,
+    },
+    {
+        title: 'Settings',
+        href: profileRoute.edit(),
         icon: LayoutGrid,
     },
 ];
