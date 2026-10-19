@@ -70,3 +70,36 @@ export type ScheduledPost = {
     status: ScheduleStatus;
     createdAt: string;
 };
+
+export type SocialPlatformId = 'linkedin' | 'instagram' | 'x';
+
+export type PublicationTarget = {
+    id: string;
+    platform: SocialPlatformId;
+    accountName: string | null;
+    username: string | null;
+    accountStatus: string;
+    status: string;
+    safeError: string | null;
+    remotePostId: string | null;
+    publishedAt: string | null;
+    retryable: boolean;
+};
+
+export type ScheduledPublication = {
+    id: string;
+    content: string;
+    scheduledAt: string;
+    timezone: string;
+    status: string;
+    targets: PublicationTarget[];
+};
+
+export type ConnectedSocialAccount = {
+    id: string;
+    platform: SocialPlatformId;
+    accountName: string | null;
+    username: string | null;
+    status: string;
+    disconnectedAt: string | null;
+};
